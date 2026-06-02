@@ -27,7 +27,7 @@
 set -euo pipefail
 
 # --- Defaults --------------------------------------------------------------
-: "${VLM_REPO_URL:=https://github.com/jerryzhang728/vlm2.git}"
+: "${VLM_REPO_URL:=https://github.com/JerryZhang728/VLM2.git}"
 : "${VLM_BRANCH:=main}"
 : "${VLM_PROJECT:=$HOME/vlm/vlm2}"
 : "${VLM_MODEL:=qwen2.5vl:3b}"
