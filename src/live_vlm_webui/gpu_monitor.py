@@ -1184,32 +1184,77 @@ class JetsonOrinMonitor(GPUMonitor):
                     raise Exception("jtop memory unavailable")
 
                 memory = self.jtop_instance.memory
-                # Orin uses unified memory, RAM is shared with GPU
-                # jtop returns memory in KB, convert to GB (divide by 1024^2)
-                # Handle different memory structure formats
+                # Orin uses unified memory, RAM is shared with GPU.
+                # jtop returns memory values in KB; convert to GB later.
+                #
+                # Across jetson-stats versions the .memory attribute is one of:
+                #   (a) plain dict: {"RAM": {"used":..., "tot":...}, "SWAP":...}
+                #   (b) dict at top level with "used","tot" keys directly
+                #   (c) jtop.core.memory.Memory object (newer versions, e.g.
+                #       JetPack 6.2): exposes RAM as a sub-attribute or via
+                #       __getitem__.
+                vram_used_kb, vram_total_kb = 0, 0
+
+                def _ram_from_dict(d):
+                    if not isinstance(d, dict):
+                        return 0, 0
+                    inner = d.get("RAM") if isinstance(d.get("RAM"), dict) else d
+                    if not isinstance(inner, dict):
+                        inner = d
+                    u = inner.get("used") or inner.get("use") or 0
+                    t = (inner.get("tot") or inner.get("total")
+                         or inner.get("size") or 0)
+                    return u, t
+
                 if isinstance(memory, dict):
-                    ram_info = memory.get("RAM", {})
-                    if isinstance(ram_info, dict):
-                        vram_used_kb = ram_info.get("used", 0) or ram_info.get("use", 0) or 0
-                        vram_total_kb = (
-                            ram_info.get("tot", 0)
-                            or ram_info.get("total", 0)
-                            or ram_info.get("size", 0)
-                            or 0
-                        )
-                    else:
-                        # Try direct memory keys
-                        vram_used_kb = memory.get("used", 0) or memory.get("use", 0) or 0
-                        vram_total_kb = (
-                            memory.get("tot", 0)
-                            or memory.get("total", 0)
-                            or memory.get("size", 0)
-                            or 0
-                        )
+                    vram_used_kb, vram_total_kb = _ram_from_dict(memory)
                 else:
-                    logger.warning(f"Unexpected memory structure type: {type(memory)}")
-                    vram_used_kb = 0
-                    vram_total_kb = 0
+                    # Newer Memory object. Try several shapes in order.
+                    extracted = False
+                    # Shape 1: memory.ram is a dict
+                    ram_attr = getattr(memory, "ram", None)
+                    if isinstance(ram_attr, dict):
+                        vram_used_kb, vram_total_kb = _ram_from_dict({"RAM": ram_attr})
+                        extracted = True
+                    # Shape 2: subscript access memory["RAM"]
+                    if not extracted:
+                        try:
+                            ram_item = memory["RAM"]
+                            if isinstance(ram_item, dict):
+                                vram_used_kb, vram_total_kb = _ram_from_dict({"RAM": ram_item})
+                                extracted = True
+                        except (TypeError, KeyError, AttributeError):
+                            pass
+                    # Shape 3: vars(memory) is a dict-of-dicts
+                    if not extracted:
+                        try:
+                            v = vars(memory)
+                            if isinstance(v, dict) and v:
+                                vram_used_kb, vram_total_kb = _ram_from_dict(v)
+                                extracted = True
+                        except TypeError:
+                            pass
+                    # Shape 4: direct attributes used/tot on the object
+                    if not extracted:
+                        u = getattr(memory, "used", None) or getattr(memory, "use", None)
+                        t = (getattr(memory, "tot", None)
+                             or getattr(memory, "total", None)
+                             or getattr(memory, "size", None))
+                        if u is not None or t is not None:
+                            vram_used_kb = u or 0
+                            vram_total_kb = t or 0
+                            extracted = True
+                    if not extracted and not hasattr(self, "_mem_type_logged"):
+                        # Last-ditch diagnostic: dump what attributes are there
+                        try:
+                            attrs = [a for a in dir(memory) if not a.startswith("_")][:20]
+                        except Exception:
+                            attrs = ["?"]
+                        logger.warning(
+                            f"jtop memory object type {type(memory).__name__} "
+                            f"not recognized; attrs={attrs}"
+                        )
+                        self._mem_type_logged = True
 
                 vram_used_gb = vram_used_kb / (1024 * 1024) if vram_used_kb > 0 else 0
                 vram_total_gb = vram_total_kb / (1024 * 1024) if vram_total_kb > 0 else 0
