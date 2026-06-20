@@ -14,7 +14,8 @@ chmod +x "$TARGET"
 # Bake the real project path (parent of this bin/ dir) into the installed copy
 # so the global 'em_vlm' command controls THIS clone.
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-sed -i "s#__VLM_PROJECT__#${PROJECT_DIR}#" "$TARGET"
+# Replace ONLY the assignment line, not the sentinel in the comparison below it.
+sed -i "s#^PROJECT=\"__VLM_PROJECT__\"#PROJECT=\"${PROJECT_DIR}\"#" "$TARGET"
 echo "Installed: $TARGET  (project: $PROJECT_DIR)"
 
 # Ensure ~/.local/bin is in PATH
