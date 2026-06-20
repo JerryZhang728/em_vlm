@@ -1223,8 +1223,8 @@ limitations under the License.
             line-height: 1.6;
             color: var(--text-primary);
             transition: opacity 3s ease, transform 0.3s ease, box-shadow 0.3s ease;
-            min-height: max(320px, 40vh);
-            max-height: 70vh;
+            min-height: max(192px, 24vh);
+            max-height: 42vh;
             overflow-y: auto;
             margin-top: 12px;
             margin-left: 0;
@@ -2215,18 +2215,14 @@ limitations under the License.
                 <div class="panel-content" id="promptEditor">
                     <div class="form-group">
                         <label>Custom Prompt</label>
-                        <textarea id="promptText" placeholder="Enter your custom prompt here..." rows="6">Describe the image in 30 words.
-Also provide:
-- people count: reply 0 if none
-- vehicle count: reply 0 if none
-- risk level to the public (NA / low / medium / high). Explain when it's high.</textarea>
+                        <textarea id="promptText" placeholder="Enter your custom prompt here..." rows="6">Describe what you see in this image in one sentence.</textarea>
                     </div>
                     <div class="form-group">
                         <label>Quick Presets</label>
                         <select id="promptPreset">
+                            <option value="Describe what you see in this image in one sentence." selected>Scene Description</option>
                             <option value="">-- Select a preset --</option>
                             <option value="Describe the image in 30 words.&#10;Also provide:&#10;- people count: reply 0 if none&#10;- vehicle count: reply 0 if none&#10;- risk level to the public (NA / low / medium / high). Explain when it's high.">Risk Evaluation</option>
-                            <option value="Describe what you see in this image in one sentence.">Scene Description</option>
                             <option value="List all objects you can see in this image, separated by commas.">Object Detection</option>
                             <option value="Describe the person's activity and what they are doing.">Activity Recognition</option>
                             <option value="Are there any safety hazards visible? Answer with 'ALERT: description' or 'SAFE'.">Safety Monitoring</option>
@@ -2274,7 +2270,7 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                 <div class="panel-content" id="cameraConfig">
                     <!-- Input Source Tabs -->
                     <div class="input-source-tabs">
-                        <button class="input-source-tab active" data-source="webcam">
+                        <button class="input-source-tab" data-source="webcam">
                             <i data-lucide="video" style="width: 14px; height: 14px; margin-right: 4px;"></i>
                             Webcam
                         </button>
@@ -2282,7 +2278,7 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                             <i data-lucide="cast" style="width: 14px; height: 14px; margin-right: 4px;"></i>
                             IP Cam
                         </button>
-                        <button class="input-source-tab" data-source="image" title="Local image file or folder (slideshow)">
+                        <button class="input-source-tab active" data-source="image" title="Local image file or folder (slideshow)">
                             <i data-lucide="image" style="width: 14px; height: 14px; margin-right: 4px;"></i>
                             Image
                         </button>
@@ -2293,7 +2289,7 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                     </div>
 
                     <!-- Webcam Controls -->
-                    <div id="webcamControls">
+                    <div id="webcamControls" style="display: none;">
                         <div class="form-group">
                             <label>Camera Selection</label>
                             <select id="cameraSelect">
@@ -2327,7 +2323,7 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                     </div>
 
                     <!-- Image Controls (single file OR folder slideshow) -->
-                    <div id="imageControls" style="display: none;">
+                    <div id="imageControls">
                         <div class="form-group">
                             <label for="localImagePath">Image File or Folder Path</label>
                             <div style="display: flex; gap: 6px; margin-bottom: 8px;">
@@ -2568,7 +2564,7 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                     </div>
             </div>
 
-                <div class="result-prompt" id="currentPrompt" style="min-height: 11em; white-space: pre-wrap; word-break: break-word; padding: 12px 14px; background: var(--bg-secondary); border-radius: 8px; font-size: 17px; line-height: 1.6; margin-bottom: 12px; margin-left: 0;"></div>
+                <div class="result-prompt" id="currentPrompt" style="min-height: 6.6em; white-space: pre-wrap; word-break: break-word; padding: 12px 14px; background: var(--bg-secondary); border-radius: 8px; font-size: 17px; line-height: 1.6; margin-bottom: 12px; margin-left: 0;"></div>
                 <div id="requestPayloadDebug" class="debug-payload-block" style="display: none; margin-top: 8px;">
                     <details style="margin: 0;">
                         <summary style="cursor: pointer; font-size: 12px; color: var(--text-secondary);">Request payload (debug)</summary>
@@ -3474,23 +3470,55 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
                     data.models.forEach((model, index) => {
                         const option = document.createElement('option');
                         option.value = model.id;
-                        option.textContent = model.id;
+                        // model.vision: true = can see images, false = text-only,
+                        // null/undefined = unknown (don't restrict).
+                        if (model.vision === false) {
+                            option.textContent = model.id + '  \u26A0 no image support';
+                            option.disabled = true;
+                            option.dataset.vision = 'false';
+                        } else {
+                            option.textContent = model.id;
+                            option.dataset.vision = (model.vision === true) ? 'true' : 'unknown';
+                        }
                         if (model.current) {
-                            option.selected = true;
                             currentModel = model.id;
                         }
                         modelSelect.appendChild(option);
                     });
 
-                    // If no current model, auto-select first model and apply
-                    if (!currentModel && data.models.length > 0) {
-                        autoSelectedModel = data.models[0].id;
+                    // A model is usable for image analysis if it's vision-capable
+                    // or its capability is unknown (true/null). false = text-only.
+                    const canSee = (m) => m && m.vision !== false;
+
+                    // Prefer gemma3:4b as the default model when available
+                    const preferredDefault =
+                        data.models.find(m => m.id === 'gemma3:4b') ||
+                        data.models.find(m => m.id.startsWith('gemma3'));
+                    if (preferredDefault) {
+                        autoSelectedModel = preferredDefault.id;
                         modelSelect.value = autoSelectedModel;
                         currentModel = autoSelectedModel;
-
-                        // Auto-apply the new model
-                        console.log(`Auto-selected model: ${autoSelectedModel}`);
+                        console.log(`Default model set to: ${autoSelectedModel}`);
                         applyApiSettings({ showFeedback: false });
+                    } else if (currentModel && canSee(data.models.find(m => m.id === currentModel))) {
+                        modelSelect.value = currentModel;
+                    } else {
+                        // Fallback: auto-select the first vision-capable (or unknown) model
+                        const firstUsable = data.models.find(canSee) || data.models[0];
+                        if (firstUsable) {
+                            autoSelectedModel = firstUsable.id;
+                            modelSelect.value = autoSelectedModel;
+                            currentModel = autoSelectedModel;
+                            console.log(`Auto-selected model: ${autoSelectedModel}`);
+                            applyApiSettings({ showFeedback: false });
+                        }
+                    }
+
+                    // Warn clearly if the active model can't accept images
+                    // (instead of surfacing a raw 400 only when the user hits Analyze).
+                    const activeMeta = data.models.find(m => m.id === currentModel);
+                    if (activeMeta && activeMeta.vision === false) {
+                        updateStatus(`Model "${currentModel}" is text-only and cannot analyze images. Choose a vision model (e.g. gemma3:4b).`, 'disconnected');
                     }
 
                     // Update model name in VLM output header
@@ -4716,8 +4744,22 @@ After commands, explain: obstacles detected, clearance margins, goal inference, 
     function browsePick(mode, fullPath) {
         const inputId = (mode === 'image') ? 'localImagePath' : 'localVideoPath';
         const containerId = (mode === 'image') ? 'imageBrowserInline' : 'videoBrowserInline';
+        // The path field is disabled while streaming; setting .value via JS still works.
         document.getElementById(inputId).value = fullPath;
         document.getElementById(containerId).style.display = 'none';
+
+        // Auto-apply: if currently streaming this same source, restart the stream
+        // with the newly selected path so the image/video changes immediately
+        // (no need to manually Stop then Play).
+        const activeTab = document.querySelector('.input-source-tab.active');
+        const activeSource = activeTab ? activeTab.getAttribute('data-source') : null;
+        if (peerConnection && activeSource === mode && (mode === 'image' || mode === 'video')) {
+            (async () => {
+                await stop();
+                // brief pause so the previous peer connection fully closes
+                setTimeout(() => { start(); }, 300);
+            })();
+        }
     }
 
     function browseParent(path) {

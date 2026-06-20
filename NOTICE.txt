@@ -51,7 +51,7 @@ The following changes have been made to the upstream live-vlm-webui v0.4.0:
     the Jetson Thor system header.
 
   * Added helper scripts: push.ps1, start.ps1, restart.ps1,
-    start (Linux), bin/vlm2 (Linux), bin/install_vlm2.sh,
+    start (Linux), bin/em_vlm (Linux), bin/install_em_vlm.sh,
     SETUP_THOR.md.
 
 

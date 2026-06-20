@@ -7,7 +7,7 @@
 #
 # Usage on a brand-new Jetson:
 #
-#     curl -fsSL https://raw.githubusercontent.com/<YOUR-GH-USER>/vlm2/main/install.sh | bash
+#     curl -fsSL https://raw.githubusercontent.com/<YOUR-GH-USER>/em_vlm/main/install.sh | bash
 #
 # Or, after cloning manually:
 #
@@ -16,7 +16,7 @@
 # Flags (set via env var):
 #     VLM_REPO_URL    git URL to clone (default: this repo)
 #     VLM_BRANCH      branch / tag (default: main)
-#     VLM_PROJECT     install location (default: $HOME/vlm/vlm2)
+#     VLM_PROJECT     install location (default: $HOME/em_vlm)
 #     VLM_MODEL       Ollama model to pull (default: qwen2.5vl:3b)
 #     VLM_NUM_CTX     Ollama context cap (default: 8192)
 #     SKIP_OLLAMA=1   skip Ollama install (already installed)
@@ -27,10 +27,20 @@
 set -euo pipefail
 
 # --- Defaults --------------------------------------------------------------
-: "${VLM_REPO_URL:=https://github.com/JerryZhang728/VLM2.git}"
+: "${VLM_REPO_URL:=https://github.com/jerryzhang728/em_vlm.git}"
 : "${VLM_BRANCH:=main}"
-: "${VLM_PROJECT:=$HOME/vlm/vlm2}"
-: "${VLM_MODEL:=qwen2.5vl:3b}"
+
+# Self-locating: when run from inside a checkout (pyproject.toml sits next to
+# this script), install IN-PLACE in that folder -- so you can clone into any
+# folder name (e.g. vlm3) and it installs there. Only when run standalone
+# (curl | bash, no local files) do we fall back to the default path below.
+_INSTALL_SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd)"
+if [[ -z "${VLM_PROJECT:-}" && -n "${_INSTALL_SRC_DIR:-}" && -f "${_INSTALL_SRC_DIR}/pyproject.toml" ]]; then
+    VLM_PROJECT="$_INSTALL_SRC_DIR"
+fi
+: "${VLM_PROJECT:=$HOME/em_vlm}"
+: "${VLM_MODEL:=gemma3:4b}"
+: "${VLM_EXTRA_MODELS:=qwen2.5vl:3b}"
 : "${VLM_NUM_CTX:=8192}"
 : "${SKIP_OLLAMA:=0}"
 : "${SKIP_APT:=0}"
@@ -99,25 +109,70 @@ EOF
     sudo systemctl restart ollama || true
     sleep 2
 
-    # Pull the model
-    if ! ollama list 2>/dev/null | grep -q "^${VLM_MODEL%%:*}"; then
-        log "Pulling Ollama model: ${VLM_MODEL} (this may take a few minutes)"
-        ollama pull "${VLM_MODEL}"
-    else
-        ok "Model already present: ${VLM_MODEL}"
-    fi
+    # Pull vision models. gemma3:4b is the default the UI selects; qwen2.5vl:3b
+    # is also pulled so you can switch to it in the WebUI.
+    for _m in $VLM_MODEL $VLM_EXTRA_MODELS; do
+        if ! ollama list 2>/dev/null | grep -q "^${_m%%:*}"; then
+            log "Pulling Ollama model: ${_m} (this may take a few minutes)"
+            ollama pull "${_m}"
+        else
+            ok "Model already present: ${_m}"
+        fi
+    done
 else
     warn "Skipping Ollama install (SKIP_OLLAMA=1)"
 fi
 
 # --- 3. jetson-stats (Jetson only) -----------------------------------------
-if [[ -f /etc/nv_tegra_release ]]; then
-    if ! command -v jtop >/dev/null 2>&1; then
-        log "Installing jetson-stats (for GPU/VRAM telemetry)"
-        sudo pip3 install --break-system-packages jetson-stats
-        sudo systemctl restart jtop.service 2>/dev/null || true
+# Notes from real-world testing:
+#   * On JetPack 7 (Thor) and JetPack 6.2 (Orin) the service must be installed
+#     and started SYSTEM-WIDE (not just in the venv). The venv copy is only
+#     used by our Python to READ the running service.
+#   * Some JetPacks have pip3 missing or pinned -- use python3 -m pip as a
+#     fallback. --break-system-packages is required on Ubuntu 24.04.
+#   * jetson-stats provides the systemd unit `jtop.service` automatically;
+#     enabling + starting is its own postinstall step on some versions, on
+#     others we have to do it ourselves. Hence the explicit enable/start.
+#   * The `jtop` CLI is only available after PATH refresh in the current
+#     shell -- check both `command -v jtop` and a hardcoded path.
+
+install_jetson_stats() {
+    local pkg="jetson-stats"
+
+    # 1. System-wide install (provides jtop service + CLI)
+    log "Installing ${pkg} system-wide"
+    if command -v pip3 >/dev/null 2>&1; then
+        sudo pip3 install --break-system-packages -U "${pkg}" ||             sudo python3 -m pip install --break-system-packages -U "${pkg}"
     else
-        ok "jetson-stats already installed"
+        sudo apt-get install -y python3-pip
+        sudo python3 -m pip install --break-system-packages -U "${pkg}"
+    fi
+
+    # 2. Make sure the jtop service is enabled + running.
+    # The package's postinstall usually does this; we redo it to be safe.
+    sudo systemctl daemon-reload || true
+    sudo systemctl enable  jtop.service 2>/dev/null || true
+    sudo systemctl restart jtop.service 2>/dev/null ||         sudo systemctl start jtop.service 2>/dev/null || true
+
+    # 3. Wait a moment for the service to actually come up
+    sleep 2
+
+    # 4. Verify
+    if systemctl is-active --quiet jtop.service 2>/dev/null; then
+        ok "jtop.service is active"
+    else
+        warn "jtop.service did not start. Diagnostics:"
+        sudo systemctl status jtop.service --no-pager 2>&1 | head -20 || true
+        warn "Falling back to sysfs-only GPU stats (no power/temp telemetry)."
+    fi
+}
+
+# Only attempt on Jetson devices
+if [[ -f /etc/nv_tegra_release ]]; then
+    if command -v jtop >/dev/null 2>&1 && systemctl is-active --quiet jtop.service 2>/dev/null; then
+        ok "jetson-stats already installed and running"
+    else
+        install_jetson_stats
     fi
 fi
 
@@ -144,25 +199,30 @@ fi
 log "Installing live-vlm-webui (editable) into venv"
 .venv/bin/pip install --upgrade pip --quiet
 .venv/bin/pip install -e . --quiet
-.venv/bin/pip install jetson-stats --quiet 2>/dev/null || true
+# jetson-stats in the venv lets our Python read the system jtop service.
+# On non-Jetson hardware the install will fail; that's fine, we don't need it.
+if [[ -f /etc/nv_tegra_release ]]; then
+    .venv/bin/pip install jetson-stats --quiet || \
+        warn "jetson-stats install into venv failed -- GPU bars in UI may not work"
+fi
 ok "Python package installed"
 
-# --- 6. vlm2 CLI wrapper ---------------------------------------------------
-if [[ -f "$VLM_PROJECT/bin/install_vlm2.sh" ]]; then
-    log "Installing vlm2 CLI wrapper"
-    bash "$VLM_PROJECT/bin/install_vlm2.sh"
+# --- 6. em_vlm CLI wrapper ---------------------------------------------------
+if [[ -f "$VLM_PROJECT/bin/install_em_vlm.sh" ]]; then
+    log "Installing em_vlm CLI wrapper"
+    bash "$VLM_PROJECT/bin/install_em_vlm.sh"
 fi
 
 # --- 7. Make scripts executable --------------------------------------------
 chmod +x "$VLM_PROJECT/start" 2>/dev/null || true
 chmod +x "$VLM_PROJECT/bin/"*.sh 2>/dev/null || true
-chmod +x "$VLM_PROJECT/bin/vlm2" 2>/dev/null || true
+chmod +x "$VLM_PROJECT/bin/em_vlm" 2>/dev/null || true
 
 # --- 8. Optionally start the server ----------------------------------------
 if [[ "$START_AFTER" == "1" ]]; then
     log "Starting server in background"
-    if command -v vlm2 >/dev/null 2>&1; then
-        vlm2 bg
+    if command -v em_vlm >/dev/null 2>&1; then
+        em_vlm bg
     else
         cd "$VLM_PROJECT"
         nohup .venv/bin/python -m live_vlm_webui.server >/tmp/vlm.log 2>&1 &
@@ -182,12 +242,12 @@ ${C_OK}========================================================${C_END}
 
   Project:    ${VLM_PROJECT}
   Venv:       ${VLM_PROJECT}/.venv
-  Ollama:     ${VLM_MODEL} (num_ctx=${VLM_NUM_CTX})
-  CLI:        vlm2 {start|bg|stop|restart|status|log}
+  Ollama:     ${VLM_MODEL} (default) + ${VLM_EXTRA_MODELS} (num_ctx=${VLM_NUM_CTX})
+  CLI:        em_vlm {start|bg|stop|restart|status|log}
 
   Start the server:
-      vlm2 bg          # background, logs at /tmp/vlm.log
-      vlm2             # foreground
+      em_vlm bg          # background, logs at /tmp/vlm.log
+      em_vlm             # foreground
 
   Open in browser:
       https://${IP:-<this-device-ip>}:8090

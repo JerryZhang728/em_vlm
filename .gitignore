@@ -79,3 +79,9 @@ tests/e2e/.test-data/
 cert.pem
 key.pem
 *.pem
+
+# FUSE orphan files (created when editing on a synced/mounted FS)
+.fuse_hidden*
+
+# Remembered device IP for the dev scripts (per-machine, DHCP)
+.device_ip

@@ -1,5 +1,8 @@
 # Rebuild Guide — live-vlm-webui (Emplus / Thor)
 
+> **Note:** This document is superseded by [INSTALL.md](./INSTALL.md) (fresh-device install from Git) and [DEVELOPING.md](./DEVELOPING.md) (the Windows dev loop). It's kept for reference; IPs below are examples — the dev scripts now prompt for the device IP.
+
+
 Complete recovery procedure for getting back up and running after the Nvidia
 Thor device has been re-flashed. Follow top to bottom. Each step is
 independent; if something's already done, skip ahead.
@@ -10,7 +13,7 @@ independent; if something's already done, skip ahead.
 |------------------|------------------------------------------|
 | Thor user        | `ubuntu`                                 |
 | Thor IP          | `192.168.213.135`                        |
-| Thor project dir | `/home/ubuntu/vlm/vlm2`                  |
+| Thor project dir | `/home/ubuntu/em_vlm`                  |
 | Windows project  | `C:\Users\jerry\OneDrive_Gmail\OneDrive\Claude\VLM\VLM2` |
 | Web URL          | `https://192.168.213.135:8090`           |
 
@@ -183,13 +186,13 @@ From Windows PowerShell:
 
 ```powershell
 cd C:\Users\jerry\OneDrive_Gmail\OneDrive\Claude\VLM\VLM2
-ssh ubuntu@192.168.213.135 "mkdir -p /home/ubuntu/vlm/vlm2"
+ssh ubuntu@192.168.213.135 "mkdir -p /home/ubuntu/em_vlm"
 .\push
 ```
 
 `.\push` runs `scp` for each top-level item (`src`, `bin`, `start`,
 `pyproject.toml`, `requirements.txt`, `MANIFEST.in`, `README.md`,
-`LICENSE`, `NOTICE.txt`). It also chmods `start`, `bin/vlm2`, and
+`LICENSE`, `NOTICE.txt`). It also chmods `start`, `bin/em_vlm`, and
 `bin/*.sh` to executable.
 
 ---
@@ -199,7 +202,7 @@ ssh ubuntu@192.168.213.135 "mkdir -p /home/ubuntu/vlm/vlm2"
 SSH in, then:
 
 ```bash
-cd /home/ubuntu/vlm/vlm2
+cd /home/ubuntu/em_vlm
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -218,15 +221,15 @@ python -c "from live_vlm_webui import local_file_track; print('OK')"
 
 ---
 
-## Part 7 — Thor: install the `vlm2` CLI wrapper
+## Part 7 — Thor: install the `em_vlm` CLI wrapper
 
 ```bash
-bash /home/ubuntu/vlm/vlm2/bin/install_vlm2.sh
+bash /home/ubuntu/em_vlm/bin/install_em_vlm.sh
 source ~/.bashrc
-vlm2 status      # should say "not running"
+em_vlm status      # should say "not running"
 ```
 
-If `vlm2: command not found` after `source ~/.bashrc`, your
+If `em_vlm: command not found` after `source ~/.bashrc`, your
 `~/.local/bin` isn't on PATH — re-run the install script; it appends
 the PATH line to `~/.bashrc` automatically.
 
@@ -237,12 +240,12 @@ the PATH line to `~/.bashrc` automatically.
 ### From Thor (the recommended way)
 
 ```bash
-vlm2          # foreground, Ctrl+C to stop
-vlm2 bg       # background, logs to /tmp/vlm.log
-vlm2 stop     # kill it
-vlm2 restart  # stop + bg
-vlm2 status   # is it running?
-vlm2 log      # tail /tmp/vlm.log
+em_vlm          # foreground, Ctrl+C to stop
+em_vlm bg       # background, logs to /tmp/vlm.log
+em_vlm stop     # kill it
+em_vlm restart  # stop + bg
+em_vlm status   # is it running?
+em_vlm log      # tail /tmp/vlm.log
 ```
 
 ### From your Windows PowerShell
@@ -267,7 +270,7 @@ self-signed certificate warning.
    ```
 3. **Restart** the server on Thor — pick one:
    - From Windows: `.\start` (foreground, see logs) or `.\restart` (background)
-   - From Thor (SSH): `vlm2 restart`
+   - From Thor (SSH): `em_vlm restart`
 4. **Test**: refresh the browser. **Ctrl+Shift+R** for a hard refresh
    when CSS/JS changes don't appear.
 
@@ -277,10 +280,10 @@ self-signed certificate warning.
 
 | Symptom                                          | Fix |
 |--------------------------------------------------|-----|
-| `vlm2: command not found`                        | `source ~/.bashrc` or `bash bin/install_vlm2.sh` again |
+| `em_vlm: command not found`                        | `source ~/.bashrc` or `bash bin/install_em_vlm.sh` again |
 | `externally-managed-environment` on pip          | You forgot `source .venv/bin/activate` |
-| Server exits silently when started over SSH      | Already fixed via `setsid` in `push.ps1` and `vlm2 bg` |
-| "Permission denied" during scp                   | `push.ps1` now `chmod -R u+rwX` first; if it persists, the file in question is owned by a different user — `sudo chown -R ubuntu:ubuntu /home/ubuntu/vlm/vlm2` |
+| Server exits silently when started over SSH      | Already fixed via `setsid` in `push.ps1` and `em_vlm bg` |
+| "Permission denied" during scp                   | `push.ps1` now `chmod -R u+rwX` first; if it persists, the file in question is owned by a different user — `sudo chown -R ubuntu:ubuntu /home/ubuntu/em_vlm` |
 | Browser shows "Connection insecure"              | Accept the self-signed cert (one-time per browser) |
 | GPU%  stuck at 22%                               | Idle frequency proxy. Will rise during VLM inference |
 | GPU% stays 0 during inference                    | `jetson-stats` not installed in the venv; `pip install jetson-stats` while venv is active |
@@ -303,8 +306,8 @@ above, in order:
 4. Part 4 (apt prereqs + jetson-stats)
 5. Part 5 (`.\push` from Windows)
 6. Part 6 (venv + `pip install -e .`)
-7. Part 7 (install `vlm2`)
-8. Part 8 (`vlm2 bg`)
+7. Part 7 (install `em_vlm`)
+8. Part 8 (`em_vlm bg`)
 
 Total time on a fresh Thor: roughly 30–45 minutes, most of which is
 `pip install -e .` and `ollama pull` downloads.

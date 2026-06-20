@@ -1,5 +1,8 @@
 # Setting up live-vlm-webui v2 on the Thor device
 
+> **Note:** This document is superseded by [INSTALL.md](./INSTALL.md) (fresh-device install from Git) and [DEVELOPING.md](./DEVELOPING.md) (the Windows dev loop). It's kept for reference; IPs below are examples — the dev scripts now prompt for the device IP.
+
+
 One-time setup for the Nvidia Thor (Ubuntu 24.04, ARM64, Python 3.12). After
 this, iteration is just `.\push_and_restart.ps1` from Windows.
 
@@ -16,8 +19,8 @@ this, iteration is just `.\push_and_restart.ps1` from Windows.
 
 ```powershell
 cd C:\Users\jerry\OneDrive_Gmail\OneDrive\Claude\VLM\VLM2
-ssh ubuntu@192.168.213.135 "mkdir -p /home/ubuntu/vlm/vlm2"
-scp -r src pyproject.toml requirements.txt MANIFEST.in README.md LICENSE ubuntu@192.168.213.135:/home/ubuntu/vlm/vlm2/
+ssh ubuntu@192.168.213.135 "mkdir -p /home/ubuntu/em_vlm"
+scp -r src pyproject.toml requirements.txt MANIFEST.in README.md LICENSE ubuntu@192.168.213.135:/home/ubuntu/em_vlm/
 ```
 
 **Then SSH into Thor and install inside a venv** (Ubuntu 24.04 / Python 3.12
@@ -35,7 +38,7 @@ sudo apt install -y \
     libopus-dev libvpx-dev pkg-config libsrtp2-dev
 
 # Create the project venv (one time)
-cd /home/ubuntu/vlm/vlm2
+cd /home/ubuntu/em_vlm
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip

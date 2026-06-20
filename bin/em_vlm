@@ -1,22 +1,28 @@
 #!/bin/bash
-# vlm2 — start/stop/restart live-vlm-webui server from anywhere on Thor
+# em_vlm — start/stop/restart live-vlm-webui server from anywhere on Thor
 #
 # Install (one-time, on Thor):
 #   mkdir -p ~/.local/bin
-#   cp /home/ubuntu/vlm/vlm2/bin/vlm2 ~/.local/bin/vlm2
-#   chmod +x ~/.local/bin/vlm2
-#   # If 'vlm2: command not found' afterwards:
+#   cp /home/ubuntu/em_vlm/bin/em_vlm ~/.local/bin/em_vlm
+#   chmod +x ~/.local/bin/em_vlm
+#   # If 'em_vlm: command not found' afterwards:
 #   echo 'export PATH=$HOME/.local/bin:$PATH' >> ~/.bashrc && source ~/.bashrc
 #
 # Usage:
-#   vlm2          start in foreground (Ctrl+C to stop)
-#   vlm2 bg       start in background, log to /tmp/vlm.log
-#   vlm2 stop     kill the server
-#   vlm2 restart  stop, then start in background
-#   vlm2 log      tail the log
-#   vlm2 status   show whether the server is running
+#   em_vlm          start in foreground (Ctrl+C to stop)
+#   em_vlm bg       start in background, log to /tmp/vlm.log
+#   em_vlm stop     kill the server
+#   em_vlm restart  stop, then start in background
+#   em_vlm log      tail the log
+#   em_vlm status   show whether the server is running
 
-PROJECT=/home/ubuntu/vlm/vlm2
+# PROJECT is baked in by install_em_vlm.sh at install time. If it's still the
+# placeholder, resolve it from this script's own location (parent of bin/).
+PROJECT="__VLM_PROJECT__"
+if [ "$PROJECT" = "__VLM_PROJECT__" ]; then
+    _SELF="$(cd "$(dirname "$0")" && pwd)"
+    PROJECT="$(dirname "$_SELF")"
+fi
 VENV_PY=$PROJECT/.venv/bin/python
 LOG=/tmp/vlm.log
 
@@ -66,7 +72,7 @@ case "${1:-start}" in
         fi
         ;;
     *)
-        echo "Usage: vlm2 [start|bg|restart|stop|log|status]"
+        echo "Usage: em_vlm [start|bg|restart|stop|log|status]"
         exit 1
         ;;
 esac

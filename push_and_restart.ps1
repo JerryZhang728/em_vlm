@@ -1,36 +1,40 @@
 # push_and_restart.ps1
 # ---------------------------------------------------------------------------
-# One-shot dev-loop helper: copy the local VLM2/ tree to Thor over LAN, then
-# restart live-vlm-webui on Thor (inside the venv at ThorPath/.venv).
+# One-shot dev-loop helper: copy the local VLM2/ tree to the Nvidia device over
+# LAN, then restart live-vlm-webui on it (inside the venv at DevicePath/.venv).
 #
-# Prereqs (one-time setup, see SETUP_THOR.md):
-#   * SSH access to Thor with password-free key auth recommended
-#   * On Thor:
-#         cd /home/ubuntu/vlm/vlm2
-#         python3 -m venv .venv
-#         source .venv/bin/activate
-#         pip install -e .
+# Prereqs (one-time, see DEVELOPING.md):
+#   * SSH access to the device (password-free key auth recommended)
+#   * On the device:  cd <project> && python3 -m venv .venv &&
+#                     source .venv/bin/activate && pip install -e .
+#     (or just run ./install.sh once -- see INSTALL.md)
 #
 # Usage:
-#   .\push_and_restart.ps1                 # default Thor target
-#   .\push_and_restart.ps1 -Restart:$false # push only, don't restart
+#   .\push_and_restart.ps1                  # prompts for device IP (remembered)
+#   .\push_and_restart.ps1 -DeviceIP 192.168.1.50
+#   .\push_and_restart.ps1 -Restart:$false  # push only, don't restart
 # ---------------------------------------------------------------------------
 
 param(
-    [string]$ThorUser   = "ubuntu",
-    [string]$ThorHost   = "192.168.213.135",
-    [string]$ThorPath   = "/home/ubuntu/vlm/vlm2",
+    [string]$DeviceIP   = "",
+    [string]$DeviceUser = "ubuntu",
+    [string]$DevicePath = "/home/ubuntu/em_vlm",
     [bool]  $Restart    = $true
 )
 
 $ErrorActionPreference = "Stop"
-$LocalPath = Split-Path -Parent $MyInvocation.MyCommand.Path
-$VenvPython = "$ThorPath/.venv/bin/python"
-$VenvPip    = "$ThorPath/.venv/bin/pip"
+. (Join-Path $PSScriptRoot "device_target.ps1")
+$t = Resolve-DeviceTarget -DeviceIP $DeviceIP -DeviceUser $DeviceUser -DevicePath $DevicePath
 
-Write-Host "==> Pushing $LocalPath/  ->  $ThorUser@$ThorHost`:$ThorPath/" -ForegroundColor Cyan
+$LocalPath  = $PSScriptRoot
+$DPath      = $t.Path
+$VenvPython = "$DPath/.venv/bin/python"
+$VenvPip    = "$DPath/.venv/bin/pip"
 
-# Push only the files that change. Skip .git, .venv, __pycache__, dist, etc.
+Clear-PushJunk -Root (Join-Path $LocalPath "src")
+
+Write-Host "==> Pushing $LocalPath\  ->  $($t.User)@$($t.IP):$DPath/" -ForegroundColor Cyan
+
 $pushTargets = @(
     "src",
     "bin",
@@ -41,13 +45,13 @@ $pushTargets = @(
     "LICENSE"
 )
 
-foreach ($t in $pushTargets) {
-    $local = Join-Path $LocalPath $t
+foreach ($f in $pushTargets) {
+    $local = Join-Path $LocalPath $f
     if (Test-Path $local) {
-        Write-Host "    scp $t" -ForegroundColor DarkGray
-        scp -r -q $local "${ThorUser}@${ThorHost}:${ThorPath}/"
+        Write-Host "    scp $f" -ForegroundColor DarkGray
+        scp -r -q $local "$($t.User)@$($t.IP):$DPath/"
         if ($LASTEXITCODE -ne 0) {
-            Write-Host "    FAIL transferring $t" -ForegroundColor Red
+            Write-Host "    FAIL transferring $f" -ForegroundColor Red
             exit 1
         }
     }
@@ -56,27 +60,20 @@ foreach ($t in $pushTargets) {
 Write-Host "==> Push complete" -ForegroundColor Green
 
 if ($Restart) {
-    Write-Host "==> Restarting live-vlm-webui on Thor (venv)..." -ForegroundColor Cyan
+    Write-Host "==> Restarting live-vlm-webui on the device (venv)..." -ForegroundColor Cyan
 
-    # Run inside the project venv. pip install -e . is editable so we don't
-    # strictly need to re-run it on every push, but doing so picks up any
-    # pyproject.toml dependency changes for free.
     $restartCmd = @"
 set -e
-cd $ThorPath
+cd $DPath
 if [ ! -x "$VenvPython" ]; then
     echo "ERROR: venv not found at $VenvPython"
-    echo "Run the one-time setup from SETUP_THOR.md first."
+    echo "Run ./install.sh on the device first (see INSTALL.md)."
     exit 1
 fi
-# Reinstall in editable mode (cheap if nothing changed).
 $VenvPip install -e . --quiet 2>/dev/null || true
-# Kill any prior instance.
 pkill -f 'live_vlm_webui.server' 2>/dev/null || true
 pkill -f 'live-vlm-webui' 2>/dev/null || true
 sleep 1
-# setsid + closed stdin properly detaches from this SSH session so the
-# process survives after this remote command returns.
 setsid $VenvPython -u -m live_vlm_webui.server </dev/null > /tmp/vlm.log 2>&1 &
 disown 2>/dev/null || true
 sleep 3
@@ -84,9 +81,9 @@ echo '--- last 30 lines of /tmp/vlm.log ---'
 tail -n 30 /tmp/vlm.log
 "@
 
-    ssh "${ThorUser}@${ThorHost}" $restartCmd
+    ssh "$($t.User)@$($t.IP)" $restartCmd
     Write-Host ""
     Write-Host "==> Done." -ForegroundColor Green
-    Write-Host "    Open https://${ThorHost}:8090 in your browser" -ForegroundColor Yellow
-    Write-Host "    Tail logs:  ssh ${ThorUser}@${ThorHost} 'tail -f /tmp/vlm.log'" -ForegroundColor DarkGray
+    Write-Host "    Open https://$($t.IP):8090 in your browser" -ForegroundColor Yellow
+    Write-Host "    Tail logs:  ssh $($t.User)@$($t.IP) 'tail -f /tmp/vlm.log'" -ForegroundColor DarkGray
 }

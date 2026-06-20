@@ -1,6 +1,6 @@
 #!/bin/bash
 # start — start live-vlm-webui server in FOREGROUND on Thor.
-# Run from project root: cd /home/ubuntu/vlm/vlm2 && ./start
+# Run from project root: cd /home/ubuntu/em_vlm && ./start
 # Ctrl+C to stop. Logs stream to this terminal.
 
 cd "$(dirname "$0")"

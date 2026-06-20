@@ -13,7 +13,7 @@ then everyday updates are a single `git push`.
 ## One-time: create the repo on GitHub
 
 1. Go to https://github.com/new (log in as **jerryzhang728** if not already)
-2. Repository name: `vlm2`  (or whatever name you want — adjust install.sh
+2. Repository name: `em_vlm`  (or whatever name you want — adjust install.sh
    accordingly)
 3. **Public** (required for `curl install.sh | bash` to work without auth)
 4. **Don't** initialize with README/LICENSE/.gitignore (we already have them)
@@ -21,7 +21,7 @@ then everyday updates are a single `git push`.
 
 GitHub will show you a URL like:
 ```
-https://github.com/jerryzhang728/vlm2.git
+https://github.com/jerryzhang728/em_vlm.git
 ```
 
 ## One-time: push your current VLM2/ to GitHub
@@ -40,7 +40,7 @@ git config user.name  "jerryzhang728"
 git config user.email "jerryzhang728@gmail.com"
 
 # Add the GitHub remote
-git remote add origin https://github.com/jerryzhang728/vlm2.git
+git remote add origin https://github.com/jerryzhang728/em_vlm.git
 
 # Stage everything except heavy/transient junk
 git add .
@@ -95,11 +95,11 @@ git push
 
 ## Now the one-shot installer becomes real
 
-Once your repo is public at `https://github.com/jerryzhang728/vlm2`, any
+Once your repo is public at `https://github.com/jerryzhang728/em_vlm`, any
 fresh Jetson can install everything in one command:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/jerryzhang728/vlm2/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
 ```
 
 That single line does (idempotently):
@@ -109,12 +109,12 @@ That single line does (idempotently):
 3. Caps Ollama context to 8192 (avoids the Qwen2.5VL panic we hit)
 4. Pulls `qwen2.5vl:3b`
 5. Installs `jetson-stats` (for GPU/VRAM telemetry)
-6. Clones `https://github.com/jerryzhang728/vlm2.git` into `~/vlm/vlm2`
+6. Clones `https://github.com/jerryzhang728/em_vlm.git` into `~/em_vlm`
 7. Creates `.venv`, runs `pip install -e .`
-8. Installs the `vlm2` CLI wrapper into `~/.local/bin/vlm2`
+8. Installs the `em_vlm` CLI wrapper into `~/.local/bin/em_vlm`
 9. Makes the helper scripts executable
 
-After it finishes, the user types `vlm2 bg` and the WebUI is live at
+After it finishes, the user types `em_vlm bg` and the WebUI is live at
 `https://<device-ip>:8090`.
 
 ## Flags the installer respects
@@ -123,10 +123,10 @@ Set as env vars on the same command line:
 
 ```bash
 # Use Gemma instead of Qwen
-VLM_MODEL=gemma3:4b curl -fsSL https://raw.githubusercontent.com/jerryzhang728/vlm2/main/install.sh | bash
+VLM_MODEL=gemma3:4b curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
 
 # Install to a different path
-VLM_PROJECT=/opt/vlm2 curl -fsSL ... | bash
+VLM_PROJECT=/opt/em_vlm curl -fsSL ... | bash
 
 # Auto-start the server when done
 START_AFTER=1 curl -fsSL ... | bash
@@ -161,5 +161,5 @@ git push origin v1.0-emplus
 Other Jetson devices can then install a specific pinned version:
 
 ```bash
-VLM_BRANCH=v1.0-emplus curl -fsSL https://raw.githubusercontent.com/jerryzhang728/vlm2/v1.0-emplus/install.sh | bash
+VLM_BRANCH=v1.0-emplus curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/v1.0-emplus/install.sh | bash
 ```

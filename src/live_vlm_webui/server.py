@@ -217,6 +217,42 @@ async def index(request):
     return web.Response(content_type="text/html", text=content)
 
 
+async def _detect_vision_capabilities(api_base, model_ids):
+    """Best-effort map of model_id -> True/False/None (vision-capable?).
+
+    Uses Ollama's native /api/show 'capabilities' when the backend is Ollama
+    (port 11434). For other backends, or when it cannot be determined, the
+    value stays None (unknown) so the UI will not wrongly restrict anything.
+    """
+    caps = {mid: None for mid in model_ids}
+    if not api_base or "11434" not in api_base:
+        return caps
+    root = api_base.rstrip("/")
+    if root.endswith("/v1"):
+        root = root[:-3].rstrip("/")
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+            for mid in model_ids:
+                try:
+                    async with session.post(f"{root}/api/show", json={"model": mid}) as resp:
+                        if resp.status != 200:
+                            continue
+                        data = await resp.json()
+                        capabilities = data.get("capabilities") or []
+                        if capabilities:
+                            caps[mid] = "vision" in capabilities
+                        else:
+                            fams = ((data.get("details") or {}).get("families")) or []
+                            blob = (" ".join(fams) + " " + mid).lower()
+                            if any(k in blob for k in ["clip", "vision", "llava", "mllama", "gemma3"]):
+                                caps[mid] = True
+                except Exception:
+                    continue
+    except Exception:
+        pass
+    return caps
+
+
 async def models(request):
     """Return available models from the VLM API"""
     try:
@@ -234,6 +270,9 @@ async def models(request):
                 {"id": model.id, "name": model.id, "current": False}
                 for model in models_response.data
             ]
+            vis = await _detect_vision_capabilities(api_base, [m["id"] for m in models_list])
+            for m in models_list:
+                m["vision"] = vis.get(m["id"])
             return web.Response(
                 content_type="application/json", text=json.dumps({"models": models_list})
             )
@@ -245,6 +284,9 @@ async def models(request):
                 {"id": model.id, "name": model.id, "current": model.id == default_svc.model}
                 for model in models_response.data
             ]
+            vis = await _detect_vision_capabilities(default_svc.api_base, [m["id"] for m in models_list])
+            for m in models_list:
+                m["vision"] = vis.get(m["id"])
             return web.Response(
                 content_type="application/json", text=json.dumps({"models": models_list})
             )

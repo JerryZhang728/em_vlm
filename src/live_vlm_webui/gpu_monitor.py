@@ -1354,12 +1354,7 @@ class JetsonOrinMonitor(GPUMonitor):
 
                 # If we got zeros OR if jtop stats/memory are None/empty, try fallback to nvidia-smi
                 # This handles cases where jtop connects but returns no data
-                if (
-                    vram_total_gb == 0
-                    or gpu_percent == 0
-                    or not isinstance(self.jtop_instance.stats, dict)
-                    or not isinstance(memory, dict)
-                ):
+                if vram_total_gb == 0:
                     logger.warning(
                         f"jtop returned zeros or invalid data (GPU={gpu_percent}%, VRAM={vram_total_gb}GB), trying nvidia-smi fallback"
                     )
@@ -1389,9 +1384,15 @@ class JetsonOrinMonitor(GPUMonitor):
                                 vram_percent = (
                                     (vram_used_gb / vram_total_gb * 100) if vram_total_gb > 0 else 0
                                 )
-                                logger.info(
-                                    f"✓ Using nvidia-smi fallback: GPU={gpu_percent}%, VRAM={vram_used_gb:.2f}/{vram_total_gb:.2f}GB"
-                                )
+                                if vram_total_gb > 0:
+                                    logger.info(
+                                        f"✓ Using nvidia-smi fallback: GPU={gpu_percent}%, VRAM={vram_used_gb:.2f}/{vram_total_gb:.2f}GB"
+                                    )
+                                else:
+                                    logger.debug(
+                                        "nvidia-smi fallback returned no usable data "
+                                        "(expected on Jetson integrated GPU)"
+                                    )
                             else:
                                 logger.warning(
                                     f"nvidia-smi returned unexpected format: {nvidia_smi_output}"
