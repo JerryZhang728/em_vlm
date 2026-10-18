@@ -7,7 +7,7 @@
 #
 # Usage on a brand-new Jetson:
 #
-#     curl -fsSL https://raw.githubusercontent.com/<YOUR-GH-USER>/em_vlm/main/install.sh | bash
+#     curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
 #
 # Or, after cloning manually:
 #
@@ -17,7 +17,8 @@
 #     VLM_REPO_URL    git URL to clone (default: this repo)
 #     VLM_BRANCH      branch / tag (default: main)
 #     VLM_PROJECT     install location (default: $HOME/em_vlm)
-#     VLM_MODEL       Ollama model to pull (default: qwen2.5vl:3b)
+#     VLM_MODEL       default Ollama model to pull (default: gemma3:4b)
+#     VLM_EXTRA_MODELS  extra models to pull (default: qwen2.5vl:3b)
 #     VLM_NUM_CTX     Ollama context cap (default: 8192)
 #     SKIP_OLLAMA=1   skip Ollama install (already installed)
 #     SKIP_APT=1      skip apt prereqs (e.g. behind firewall)

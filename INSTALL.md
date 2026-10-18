@@ -64,7 +64,7 @@ compiling native Python extensions on ARM64.
 ### Useful install options (environment variables)
 
 ```bash
-VLM_MODEL=gemma3:4b ./install.sh     # pull a different vision model
+VLM_MODEL=qwen2.5vl:7b ./install.sh  # use a different default model
 START_AFTER=1       ./install.sh     # start the server when done
 SKIP_OLLAMA=1       ./install.sh     # Ollama already set up
 SKIP_APT=1          ./install.sh     # skip apt (offline / restricted)

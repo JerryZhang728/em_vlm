@@ -2,7 +2,7 @@
  EMPLUS VLM2 -- INSTALL FROM A FRESH JETSON
 ================================================================
 
-Total time:   ~15 minutes
+Total time:   ~30-45 minutes
 Prereqs:      Internet on the Jetson, any laptop with SSH + a browser
 
 ----------------------------------------------------------------
@@ -48,10 +48,10 @@ SSH clients are built into:
 
        curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
 
-   Wait ~10-15 min. It will:
+   Wait ~30-45 min. It will:
      - apt install build tools, libav*, python3-venv, ssh, etc.
      - install Ollama and cap context to 8K (prevents Qwen panics)
-     - pull qwen2.5vl:3b
+     - pull gemma3:4b (default) and qwen2.5vl:3b
      - install jetson-stats for GPU/VRAM telemetry
      - clone the project into ~/em_vlm
      - create .venv and pip install -e .
@@ -119,7 +119,7 @@ Test stock photos (Pexels API key required, free):
 
 Change the model used:
 
-    VLM_MODEL=gemma3:4b curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
+    VLM_MODEL=qwen2.5vl:7b curl -fsSL https://raw.githubusercontent.com/jerryzhang728/em_vlm/main/install.sh | bash
 
 Skip Ollama (you already have it elsewhere):
 
