@@ -45,7 +45,7 @@ class VLMService:
         api_base: str = "http://localhost:8000/v1",
         api_key: str = "EMPTY",
         prompt: str = "Describe what you see in this image in one sentence.",
-        max_tokens: int = 512,
+        max_tokens: int = 256,
     ):
         """
         Initialize VLM service

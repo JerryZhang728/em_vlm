@@ -44,6 +44,11 @@ em_vlm log       # follow the log
 Then open **`https://<device-ip>:8090`** in a browser (find the IP with
 `hostname -I`) and accept the self-signed certificate warning once.
 
+**Try it right away:** pick the local file source. It starts in the
+`videos/` folder, which ships with sample images (warehouse, construction,
+fire safety). Defaults: gemma3:4b, 256 max tokens, a new analysis on each
+scene change, about 3.5 s per image on a Jetson Orin NX.
+
 ## Update
 
 ```bash

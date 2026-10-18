@@ -50,16 +50,17 @@ class VideoProcessorTrack(VideoStreamTrack):
     max_frame_latency = 0.0
 
     # --- Analysis cadence ---------------------------------------------------
-    # Controls WHEN frames are dispatched to the VLM. Default preserves the
-    # original frame-based behavior. Settable at runtime via the /offer body.
+    # Controls WHEN frames are dispatched to the VLM. Default is
+    # scene_change. Settable at runtime via the /offer body.
     #
-    #   "frames"        fire every process_every_n_frames frames (default).
+    #   "frames"        fire every process_every_n_frames frames.
     #   "seconds"       fire every analysis_interval_seconds wall-clock seconds.
     #   "scene_change"  fire only when consecutive frames differ by more than
     #                   scene_change_threshold, with at least
     #                   scene_change_min_interval seconds between fires
-    #                   (debounce / Ollama DoS guard).
-    analysis_mode = "frames"
+    #                   (debounce / Ollama DoS guard). Default: analyzes
+    #                   each slideshow image once.
+    analysis_mode = "scene_change"
     analysis_interval_seconds = 5.0
     scene_change_threshold = 15.0  # 0-255 mean absolute diff on 64x64 grayscale
     scene_change_min_interval = 2.0  # seconds; lower bound between dispatches

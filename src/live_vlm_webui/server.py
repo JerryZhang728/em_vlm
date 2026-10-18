@@ -19,6 +19,7 @@ Main server that handles WebRTC connections and serves the web interface
 """
 
 import asyncio
+import html
 import json
 import logging
 import os
@@ -188,6 +189,14 @@ async def detect_local_service_and_model():
                         data = await resp.json()
                         models = data.get("data", [])
                         if models:
+                            # gemma3:4b is the fastest accurate default on Jetson
+                            # (~3.5s/frame on Orin NX vs ~17s for qwen2.5vl:3b)
+                            for model in models:
+                                if model.get("id", "") == "gemma3:4b":
+                                    logger.info(f"✅ Auto-detected {service_name} at {api_base}")
+                                    logger.info("   Selected model: gemma3:4b")
+                                    return (api_base, "gemma3:4b")
+
                             # Prefer vision models
                             vision_keywords = ["vision", "llava", "llama-3.2", "gemini"]
                             for model in models:
@@ -211,9 +220,22 @@ async def detect_local_service_and_model():
     return (None, None)
 
 
+def _default_media_dir():
+    """Folder the local-file source starts in: VLM_MEDIA_DIR, else the
+    sample media shipped in <project>/videos, else the home directory."""
+    env = os.environ.get("VLM_MEDIA_DIR")
+    if env:
+        return env
+    project_videos = os.path.join(os.path.dirname(__file__), "..", "..", "videos")
+    if os.path.isdir(project_videos):
+        return os.path.realpath(project_videos)
+    return os.path.expanduser("~")
+
+
 async def index(request):
     """Serve the main HTML page"""
     content = open(os.path.join(os.path.dirname(__file__), "static", "index.html"), "r").read()
+    content = content.replace("__DEFAULT_MEDIA_DIR__", html.escape(_default_media_dir(), quote=True))
     return web.Response(content_type="text/html", text=content)
 
 
