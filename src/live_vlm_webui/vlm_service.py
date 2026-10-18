@@ -21,6 +21,7 @@ Handles async image analysis using any OpenAI-compatible VLM API
 
 import asyncio
 import base64
+from collections import deque
 import io
 import time
 from openai import AsyncOpenAI
@@ -72,6 +73,11 @@ class VLMService:
         self.last_inference_time = 0.0  # seconds
         self.total_inferences = 0
         self.total_inference_time = 0.0
+        # Avg latency covers only recent frames of the current model, so a
+        # past slow stretch (model loading, memory pressure) doesn't hide
+        # the current speed.
+        self.recent_latencies = deque(maxlen=10)
+        self._recent_latencies_model = model
 
     async def analyze_image(self, image: Image.Image, prompt: Optional[str] = None) -> str:
         """
@@ -173,6 +179,10 @@ class VLMService:
             self.last_inference_time = inference_time
             self.total_inferences += 1
             self.total_inference_time += inference_time
+            if self._recent_latencies_model != self.model:
+                self.recent_latencies.clear()
+                self._recent_latencies_model = self.model
+            self.recent_latencies.append(inference_time)
 
             result = response.choices[0].message.content.strip()
             logger.info(f"VLM response: {result} (latency: {inference_time*1000:.0f}ms)")
@@ -235,7 +245,7 @@ class VLMService:
             Dict with latency and throughput metrics
         """
         avg_latency = (
-            self.total_inference_time / self.total_inferences if self.total_inferences > 0 else 0.0
+            sum(self.recent_latencies) / len(self.recent_latencies) if self.recent_latencies else 0.0
         )
 
         return {
