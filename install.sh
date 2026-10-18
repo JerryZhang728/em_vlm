@@ -98,13 +98,17 @@ if [[ "$SKIP_OLLAMA" != "1" ]]; then
         ok "Ollama already installed"
     fi
 
-    # Cap context to keep KV cache sane on smaller GPUs / avoid Qwen panics
+    # Cap context to keep KV cache sane on smaller GPUs / avoid Qwen panics.
+    # Keep models loaded between requests: the OpenAI-compatible endpoint we
+    # use ignores per-request keep_alive, so a device-wide OLLAMA_KEEP_ALIVE=0
+    # would reload the model for every frame (~13s extra each on Orin NX).
     log "Capping Ollama context to ${VLM_NUM_CTX} (drops in /etc/systemd/system/ollama.service.d/)"
     sudo mkdir -p /etc/systemd/system/ollama.service.d
     sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null <<EOF
 [Service]
 Environment="OLLAMA_NUM_CTX=${VLM_NUM_CTX}"
 Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
+Environment="OLLAMA_KEEP_ALIVE=30m"
 EOF
     sudo systemctl daemon-reload
     sudo systemctl restart ollama || true

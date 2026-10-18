@@ -25,6 +25,9 @@ if [ "$PROJECT" = "__VLM_PROJECT__" ]; then
 fi
 VENV_PY=$PROJECT/.venv/bin/python
 LOG=/tmp/vlm.log
+# Match only the server process itself (command line starts with python),
+# not shells or editors whose command line merely mentions live_vlm_webui.
+SERVER_PAT='^[^ ]*python[0-9.]* (-u )?-m live_vlm_webui\.server'
 
 if [ ! -x "$VENV_PY" ]; then
     echo "ERROR: venv python not found at $VENV_PY"
@@ -34,16 +37,18 @@ fi
 
 case "${1:-start}" in
     start)
-        pkill -f live_vlm_webui 2>/dev/null
+        pkill -f "$SERVER_PAT" 2>/dev/null
         sleep 1
         cd "$PROJECT" && exec "$VENV_PY" -m live_vlm_webui.server
         ;;
     bg)
-        pkill -f live_vlm_webui 2>/dev/null
+        pkill -f "$SERVER_PAT" 2>/dev/null
         sleep 1
         # setsid + closing stdin properly detaches from the SSH session so the
-        # process survives when the SSH command returns.
-        cd "$PROJECT" && setsid "$VENV_PY" -u -m live_vlm_webui.server </dev/null > "$LOG" 2>&1 &
+        # process survives when the SSH command returns. The redirects go on
+        # the whole subshell so it doesn't keep the caller's stdout open
+        # (which made `ssh host em_vlm bg` and `em_vlm bg | tail` hang).
+        (cd "$PROJECT" && exec setsid "$VENV_PY" -u -m live_vlm_webui.server) </dev/null > "$LOG" 2>&1 &
         disown 2>/dev/null || true
         sleep 3
         echo "--- last 20 lines of $LOG ---"
@@ -55,7 +60,7 @@ case "${1:-start}" in
         "$0" bg
         ;;
     stop)
-        if pkill -f live_vlm_webui; then
+        if pkill -f "$SERVER_PAT"; then
             echo "stopped"
         else
             echo "no server running"
@@ -65,8 +70,8 @@ case "${1:-start}" in
         tail -f "$LOG"
         ;;
     status)
-        if pgrep -af live_vlm_webui >/dev/null; then
-            pgrep -af live_vlm_webui
+        if pgrep -af "$SERVER_PAT" >/dev/null; then
+            pgrep -af "$SERVER_PAT"
         else
             echo "not running"
         fi

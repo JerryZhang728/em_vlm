@@ -27,8 +27,12 @@ from openai import AsyncOpenAI
 from PIL import Image
 from typing import Optional
 import logging
+import os
 
 logger = logging.getLogger(__name__)
+
+# Longest side (px) of images sent to the VLM. 0 disables downscaling.
+MAX_IMAGE_SIDE = int(os.environ.get("VLM_MAX_IMAGE_SIDE", "640"))
 
 
 class VLMService:
@@ -84,6 +88,13 @@ class VLMService:
             prompt = self.prompt
 
         try:
+            # Downscale before sending: VLMs like qwen2.5vl turn every 28x28
+            # pixel patch into a token, so a full-res frame costs far more
+            # prefill time than a 640px one with little accuracy gain.
+            if MAX_IMAGE_SIDE > 0 and max(image.size) > MAX_IMAGE_SIDE:
+                image = image.copy()
+                image.thumbnail((MAX_IMAGE_SIDE, MAX_IMAGE_SIDE), Image.BILINEAR)
+
             start_time = time.perf_counter()
 
             # Convert PIL Image to base64
